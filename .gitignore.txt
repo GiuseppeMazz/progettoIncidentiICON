@@ -1,4 +1,7 @@
-venv/
 __pycache__/
-.idea/
 *.pyc
+*.pyo
+.idea/
+venv/
+test_env/
+*.pkl
