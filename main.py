@@ -9,11 +9,11 @@ from PreparaDataset import file_esterno, process_incidents_by_province, load_dat
 from Predizione import effettua_predizione
 from Modelli import prestazioni_modelli_gridSearch
 from classificazione.Classi import lavora_con_classificazione
-from resoning.ReasoningStrade import usa_onto, crea_ontologia_segmenti
-from resoning.Swrl import analizza_completo, crea_ontologia_incidenti, popola_ontologia, classifica_rischio, \
-     test_ontologia, crea_ontologia_incidenti_con_validazione, \
-    popola_ontologia_con_validazione, valuta_accuratezza, crea_ontologia_incidenti_con_validazione_esterna, \
-    evaluate_ontology_predictions
+#from resoning.ReasoningStrade import usa_onto, crea_ontologia_segmenti
+#from resoning.Swrl import analizza_completo, crea_ontologia_incidenti, popola_ontologia, classifica_rischio, \
+#     test_ontologia, crea_ontologia_incidenti_con_validazione, \
+#    popola_ontologia_con_validazione, valuta_accuratezza, crea_ontologia_incidenti_con_validazione_esterna, \
+#    evaluate_ontology_predictions
 
 from sklearn.svm import SVR
 from sklearn.ensemble import GradientBoostingRegressor
@@ -146,6 +146,7 @@ def lavora_con_modelli():
 #############
 #   Questa funzione appartiene a test NON è previsto il suo utilizzo se questo messaggio è ancora PRESENTE
 #####
+"""
 def lavora_con_ontologia():
     risposta = True
     while risposta:
@@ -254,6 +255,7 @@ def lavora_con_ontologia():
 
             case _:
                     print("input sbagliato, ritenta")
+                    """
 ##### fine della parte di codice appartenente ai test
 ###########
 
