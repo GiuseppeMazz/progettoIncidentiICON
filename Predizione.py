@@ -8,10 +8,7 @@ import geopandas as gpd
 from AnalizzaStrade import add_engineered_features
 
 
-def carica_modello(path):
-    if not os.path.exists(path):
-        raise FileNotFoundError(f" Modello non trovato: {path}")
-    return joblib.load(path)
+#FILE dedicato alla predizione
 
 
 POI_TAXONOMY = {
@@ -374,9 +371,11 @@ def df_predizione_utente(nome, start, end):
     return df_strada_utente
 
 def effettua_predizione(nome, start, end, df_completo):
+    contenuto = joblib.load("modello/modelloGB_finale.joblib")
 
-    modello = carica_modello("modello/modelloSVR_GridSrch_FeatSel.joblib")
+    modello = contenuto["modello"]
     df_percorso = df_predizione_utente(nome, start, end)
+    df_percorso = df_percorso[contenuto["feature"]]
     predizione = modello.predict(df_percorso)
     incidentiPerKmPredetti = predizione / (df_percorso["lunghezza_m"].iloc[0] / 1000)
 

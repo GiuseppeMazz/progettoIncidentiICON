@@ -4,6 +4,14 @@ import pandas as pd
 
 #file principalmente usato per la pulizia iniziale del vecchio datasetdataset originale
 
+
+def load_dataset():
+    pathDataset = "dataset_finale.csv"
+    df = pd.read_csv(pathDataset, sep=";", decimal=",", encoding="utf-8-sig")
+    return df
+
+
+
 def file_esterno():
     path_incidenti = "Localizzazione_incidenti_stradali-2023_2.CSV"
     incidenti_data = pd.read_csv(path_incidenti, sep=";", encoding="latin1")
@@ -134,7 +142,3 @@ def aggiungi_colonne(df):
     df[['limiteVel','numeroCorsie','sensoUnico','ponte','giunzione','highway_accessi','tunnel','width',
         'highway_motorway','highway_trunk','hyghway_primary','highway_scondary','highway_residential']] = None
     return df
-
-
-
-

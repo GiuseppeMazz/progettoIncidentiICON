@@ -12,6 +12,13 @@ shapely>=2.0.0
 # Machine Learning
 scikit-learn>=1.2.0
 joblib>=1.2.0
+xgboost>=1.7.0
+
+# Bayesian Network
+pgmpy>=0.1.21
+
+# Ontology / Reasoning
+owlready2>=0.46
 
 # Visualization
 matplotlib>=3.6.0

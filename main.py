@@ -1,35 +1,46 @@
 import pandas as pd
-import os
-from AnalizzaStrade import matrice_correlazione, arricchisciDataset
-from Modelli import trainModelli, dividiDataset, grid_search_gradientBoosting, grid_search_randomForest, \
-    grid_search_SVR, feat_selection, modello_finale
-from ValutazioneModelli import ottieni_prestazioni_modelli, ottieni_grafici, k_fold_personalizzato, \
+from AnalizzaStrade import matrice_correlazione, arricchisciDataset, iqr_leggero
+from CambioDataset import lavora_con_target_nuovo, cambia_target_evita_inf
+from Modelli import trainModelli, dividiDataset, feat_selection,\
+    gridSrc_con_featSel_integrata, salva_modello_finale_GB
+from ValutazioneModelli import ottieni_prestazioni_modelli, ottieni_grafici, \
     ottieni_grafici_features_selection
-from PreparaDataset import file_esterno, process_incidents_by_province
-from Predizione import df_predizione_utente, carica_modello, effettua_predizione
-from Modelli import salva_modello, prestazioni_modelli_gridSearch
+from PreparaDataset import file_esterno, process_incidents_by_province, load_dataset
+from Predizione import effettua_predizione
+from Modelli import prestazioni_modelli_gridSearch
+from classificazione.Classi import lavora_con_classificazione
+from resoning.ReasoningStrade import usa_onto, crea_ontologia_segmenti
+from resoning.Swrl import analizza_completo, crea_ontologia_incidenti, popola_ontologia, classifica_rischio, \
+     test_ontologia, crea_ontologia_incidenti_con_validazione, \
+    popola_ontologia_con_validazione, valuta_accuratezza, crea_ontologia_incidenti_con_validazione_esterna, \
+    evaluate_ontology_predictions
 
-# questo file permette si utilizare tutte le funzioni interagendo con l'utente tramite menu a scelta
+from sklearn.svm import SVR
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.pipeline import Pipeline
+
+from owlready2 import *
 
 
+# Questo file permette di utilizzare tutte le funzioni interagendo con l'utente tramite menu a scelta
 
-def load_dataset():
-    pathDataset = "dataset_finale.csv"
-    df = pd.read_csv(pathDataset, sep=";", decimal=",", encoding="utf-8-sig")
-    return df
 
 def lavora_con_modelli():
     risposta = True
+
     while risposta:
         print("\n")
         print("1) torna indietro")
         print("2) training e risultati dei modelli base (richiede un po' di tempo)")
         print("3) crea grafici (nella cartella 'grafici') dei modelli di ML base")
         print("4) crea grafici (nella cartella 'grafici') dei modelli con GridSearch ATTENZIONE: richiede tempo")
-        print("5) modelli grid search")
-        print("6) effettua predizione")
-        print("7) salva modello per predizioni (inutile se già presente, come dovrebbe)")
-        print("8) produci grafici di feature selection progressiva")
+        print("5) feature selection")
+        print("6) modelli feat selection -> grid search")
+        print("7) effettua predizione")
+        print("8) salva modello per predizioni (inutile se già presente, come dovrebbe)")
+
 
 
         inputUtente = input("\nScelta (1-2-3-4-5-6-7-8): ").strip()
@@ -40,7 +51,6 @@ def lavora_con_modelli():
                 risposta = False
 
             case '2':
-
                 df = load_dataset()
                 X_train, X_valid, y_train, y_valid, X, y = dividiDataset(df)
                 risultati = trainModelli(X,y)
@@ -59,45 +69,34 @@ def lavora_con_modelli():
                 ottieni_grafici(risultati)
 
             case '5':
-                risposta_gs=True
+                # feature selection sui modelli base, stampa a schermo
+                df = load_dataset()
+                X_train, X_valid, y_train, y_valid, X, y = dividiDataset(df)
 
-                while risposta_gs:
-                    print("\n")
-                    print("1) torna indietro")
-                    print("2) applica GridSearch su Gradient Boosting (richiede abbastanza tempo)")
-                    print("3) applica GridSearch su Random Forest (ricihede un po' di tempo)")
-                    print("4) applica GridSearch su SVR ")
-                    inputUtente = input("\nScelta (1-2-3-4): ").strip()
-                    match inputUtente:
-                        case '1':
-                            print("Indietro")
-                            risposta_gs = False
+                modelli = {
+                    "Random Forest": RandomForestRegressor(random_state=42),
+                    "Gradient Boosting": GradientBoostingRegressor(random_state=42),
+                    "SVR": Pipeline([('scaler', StandardScaler()),('model', SVR(kernel='linear'))])
+                }
 
-                        case '2':
-                            df = load_dataset()
-                            X_train, X_valid, y_train, y_valid, X, y = dividiDataset(df)
-                            bestModel = grid_search_gradientBoosting(X_train, y_train)
-                            risultatiGridGb=k_fold_personalizzato(bestModel, X, y, "Gradient Boosting con Grid Search")
-                            ottieni_prestazioni_modelli([risultatiGridGb])
+                for nome, modello in modelli.items():
+                    print(f"\n--- Feature selection con {nome} ---")
+                    n_features_range, risultati_mae, risultati_mse, risultati_r2, \
+                        miglior_num_features_mae, miglior_num_features_mse, miglior_num_features_r2, \
+                        lista_feature = feat_selection(modello, X, y)
 
-                        case'3':
-                            df = load_dataset()
-                            X_train, X_valid, y_train, y_valid, X, y = dividiDataset(df)
-                            bestModel = grid_search_randomForest(X_train, y_train)
-                            risultatiGridRf = k_fold_personalizzato(bestModel, X, y, "Random Forest con Grid Search")
-                            ottieni_prestazioni_modelli([risultatiGridRf])
-                        case '4':
-                            df = load_dataset()
-                            X_train, X_valid, y_train, y_valid, X, y = dividiDataset(df)
-                            bestModel = grid_search_SVR(X_train, y_train)
-                            risultatiGridSvr = k_fold_personalizzato(bestModel, X, y, "SVR con Grid Search")
-                            ottieni_prestazioni_modelli([risultatiGridSvr])
+                    #print(f"  Miglior R2: {max(risultati_r2):.4f} con {miglior_num_features_r2} feature")
+                    #print(f"  Feature selezionate: {list(lista_feature)}")  # copia da qui
 
-
-                        case _:
-                            print("input sbagliato, ritenta")
+                    ottieni_grafici_features_selection(
+                        n_features_range, risultati_mae, risultati_mse, risultati_r2, f"{nome} feature selection"
+                    )
 
             case '6':
+                df = load_dataset()
+                gridSrc_con_featSel_integrata(df)
+
+            case '7':
                 risposta_pred = True
 
                 while risposta_pred:
@@ -135,95 +134,128 @@ def lavora_con_modelli():
                         case _:
                             print("input sbagliato, ritenta")
 
-            case '7':
-                df = load_dataset()#bestk =26
-                X_train, X_valid, y_train, y_valid, X, y = dividiDataset(df)
-                pipeline_finale = modello_finale(grid_search_SVR(X_train, y_train))
-                #pipeline.fit(X_train, y_train)
-                print(f"Parametri selezionati{pipeline_finale.get_params()}")
-                risultati_modFin_SVR = k_fold_personalizzato(pipeline_finale, X, y, "SVR con Grid Search FeatureSel")
-                ottieni_prestazioni_modelli([risultati_modFin_SVR])
-
-                pipeline_finale.fit(X,y)
-                #ottenere le feature scelte
-                selector = pipeline_finale.named_steps["kbest"]
-                mask = selector.get_support()
-                selected_features = X.columns[mask]
-                print("Feature sclete: ")
-                print(selected_features)
-
-
-                salva_modello(pipeline_finale,"modelloSVR_GridSrch_FeatSel.joblib")
-
-
             case '8':
-                menu_features_selection()
+                df = load_dataset()
+                salva_modello_finale_GB(df)
+
+
             case _:
                 print("input sbagliato, ritenta")
 
 
-def menu_features_selection():
-    risposta_feat_sel =True
-    while risposta_feat_sel:
+#############
+#   Questa funzione appartiene a test NON è previsto il suo utilizzo se questo messaggio è ancora PRESENTE
+#####
+def lavora_con_ontologia():
+    risposta = True
+    while risposta:
         print("\n")
-        print("1) torna indietro")
-        print("2) ottieni grafico features selection Random Forest")
-        print("3) ottieni grafico features selection Grad Boosting ")
-        print("4) ottieni grafico features selection SVR  ")
+        print('1) indietro')
+        print("2) effettua predizioni")
+        print("3) mini analisi dataset")
+        print("4) esperimento swrl")
+        print("5)")
+        print("6) utilizzo di ontologia complessa con controllo qualità predizioni")
+        print("7) utilizzo di ontologia con validazione esterna")
 
-
-        inputUtenteFeatSel = input("\nScelta (1-2-3-4): ").strip()
-        match inputUtenteFeatSel:
+        inputUtente = input("\nScelta (1-2-3-4): ").strip()
+        match inputUtente:
 
             case '1':
                 print("Indietro")
-                risposta_feat_sel = False
-
+                risposta = False
 
             case '2':
                 df = load_dataset()
-                X_train, X_valid, y_train, y_valid, X, y = dividiDataset(df)
-                bestModel = grid_search_randomForest(X_train, y_train)
+                df_finale = df.copy()  # dataset dopo feature engineering
 
-                print("Gridsearch finita")
-                n_features_range, risultati_mae, risultati_mse,miglior_num_features_mae, miglior_num_features_mse\
-                    = feat_selection(bestModel, X, y)
-
-                print(f"Miglior numero di feature minimizzando mae: {miglior_num_features_mae}")
-                print(f"Miglior numero di feature minimizzando mse: {miglior_num_features_mse}")
-                print(f"Miglior mae media: {min(risultati_mae)}")
-                print(f"Miglior mse media: {min(risultati_mse)}")
-                ottieni_grafici_features_selection(n_features_range, risultati_mae, risultati_mse, "RandForest feature selection")
+                onto = crea_ontologia_segmenti(df_finale)
+                usa_onto(onto)
 
             case '3':
                 df = load_dataset()
-                X_train, X_valid, y_train, y_valid, X, y = dividiDataset(df)
-                bestModel = grid_search_gradientBoosting(X_train, y_train)
-                n_features_range, risultati_mae, risultati_mse, miglior_num_features_mae, miglior_num_features_mse \
-                    = feat_selection(bestModel, X, y)
-                print(f"Miglior numero di feature minimizzando mae: {miglior_num_features_mae}")
-                print(f"Miglior numero di feature minimizzando mse: {miglior_num_features_mse}")
-                print(f"Miglior mae media: {min(risultati_mae)}")
-                print(f"Miglior mse media: {min(risultati_mse)}")
-                ottieni_grafici_features_selection(n_features_range, risultati_mae, risultati_mse,
-                                                   "GradBoosting feature selection")
+                df_finale = df
+                print(df_finale["limiteVel"].describe())
+                print(df_finale["complexity_index"].describe())
+                print(df_finale["poi_totali"].describe())
+                print(df_finale["giunzione"].describe())
 
+                analizza_completo(df)
             case '4':
                 df = load_dataset()
-                X_train, X_valid, y_train, y_valid, X, y = dividiDataset(df)
-                bestModel = grid_search_SVR(X_train, y_train)
-                n_features_range, risultati_mae, risultati_mse, miglior_num_features_mae, miglior_num_features_mse \
-                    = feat_selection(bestModel, X, y)
-                print(f"Miglior numero di feature minimizzando mae: {miglior_num_features_mae}")
-                print(f"Miglior numero di feature minimizzando mse: {miglior_num_features_mse}")
-                print(f"Miglior mae media: {min(risultati_mae)}")
-                print(f"Miglior mse media: {min(risultati_mse)}")
-                ottieni_grafici_features_selection(n_features_range, risultati_mae, risultati_mse,
-                                                   "SVR feature selection")
+                df_finale = df.copy()  # dataset dopo feature engineering
+
+                print("Avvio ontologia semplificata...")
+
+                #
+                #onto = crea_ontologia_con_reasoner(df)
+                # Salva risultato
+                #onto.save("incidenti_classificati.owl")
+                #print("\n Ontologia salvata in 'incidenti_classificati.owl'")
+
+
+                ##ONTOLOGIA MOLTO COMPLICATA
+                # 1. Crea l'ontologia
+                onto = crea_ontologia_incidenti(df)
+                onto = popola_ontologia(onto, df)
+                onto = classifica_rischio(onto)
+            case '5':
+                #onto = visualizza_ontologia_python("incidenti_classificati.owl")
+                #plot_distribuzione_classi(onto)
+                #plot_torta_classi(onto)
+                #plot_venn_classi(onto)
+
+                onto = get_ontology("incidenti_stradali.owl").load()
+                df = load_dataset()
+                df_finale = df.copy()
+                test_ontologia(onto, df_finale)
+
+            case '6':
+                df = load_dataset()
+                df_finale = df.copy()
+                print("\n FASE 2: Creazione ontologia con validazione...")
+
+                onto_val = crea_ontologia_incidenti_con_validazione(df_finale)
+                print("\n FASE 3: Popolamento ontologia con dati...")
+                onto_val = popola_ontologia_con_validazione(onto_val, df_finale)
+                #valutazione accuratezza
+                risultati_validazione = valuta_accuratezza(onto_val)
+
+                if risultati_validazione:
+                    print("\n FASE 5: Salvataggio risultati...")
+
+                    # Salva ontologia
+                    onto_val.save("ontologia_incidenti_validata.owl")
+                    print(" Ontologia salvata in 'ontologia_incidenti_validata.owl'")
+
+            case "7":
+                df = load_dataset()
+                df_finale = df.copy()
+
+                soglia_basso = float(df_finale['INCIDENTI'].quantile(0.25))
+                soglia_medio = float(df_finale['INCIDENTI'].quantile(0.50))
+                soglia_alto = float(df_finale['INCIDENTI'].quantile(0.75))
+                soglie = (soglia_basso, soglia_medio, soglia_alto)
+
+                print("Soglie osservate:", soglie)
+                onto = crea_ontologia_incidenti_con_validazione_esterna(df_finale)
+                #onto = popola_ontologia_con_val_esterna(onto, df_finale)
+
+                with onto:
+                    sync_reasoner(infer_property_values=True)
+
+                risultati = evaluate_ontology_predictions(onto, soglie)
+
+                # 6. Stampa risultati
+                print("Totale segmenti:", risultati['totale'])
+                print("Confusion matrix:", risultati['matrice_confusione'])
+                print("Errori gravi:", risultati['errori_gravi'])
+                print("Tempo reasoning:", risultati['time_seconds'])
 
             case _:
-                print("input sbagliato, ritenta")
-
+                    print("input sbagliato, ritenta")
+##### fine della parte di codice appartenente ai test
+###########
 
 def esplora_vecchio_dataset():
     risposta = True
@@ -232,7 +264,6 @@ def esplora_vecchio_dataset():
         print('1) indietro')
         print('2) esplora dataset iniziale')
         print("3) produci dataset partendo dall'originale ATTENZIONE: può richiedere davvero tante ore")
-        print('4) ')
 
         inputUtente = input("\nScelta (1-2-3-4): ").strip()
         match inputUtente:
@@ -253,8 +284,6 @@ def esplora_vecchio_dataset():
                 os.makedirs("dataset_costruito ", exist_ok=True)
                 dataset_finale.to_csv(f"dataset_costruito/dataset_finale_costruito.csv ",
                                       index=False, sep=';', decimal=',', encoding='utf-8-sig')
-            case '4':
-                print("")
 
             case _:
                 print("input sbagliato, ritenta")
@@ -275,9 +304,11 @@ if __name__ == "__main__":
         print('1) chiusura programma')
         print('2) ottieni descrizione dataset (finale)')
         print('3) dataset originale')
-        print('4) lavora con i modelli')
+        print('4) lavora con i modelli e target incidenti')
         print('5) produci matrice di correlazione')
-
+        print('6) approccio con taraget incidenti/km')
+        print('7) approccio con classificazione')
+        #print('8) (PROVE) lavora con ontologia')
 
         inputUtente = input("\nScelta (1-2-3-4-5): ").strip()
         match inputUtente:
@@ -300,5 +331,19 @@ if __name__ == "__main__":
                 matrice = matrice_correlazione(df)
                 os.makedirs("grafici", exist_ok=True)
                 matrice.savefig(f"grafici/matriceDiCorrelazionePearson.png", dpi=300, bbox_inches="tight")
+            case '6':
+                lavora_con_target_nuovo()
+            case '7':
+                df = load_dataset()
+                # df = cambiaTarget(df)
+                df = cambia_target_evita_inf(df)
+                df, _ = iqr_leggero(df, target="incidenti_per_km")
+                lavora_con_classificazione(df)
+
+            case '8':
+                #esperimenti con ONTOLOGIA
+                print("Questo approccio ad ora è stato eliminato dal progetto")
+                #lavora_con_ontologia()
+
             case _:
                 print("input sbagliato, ritenta")

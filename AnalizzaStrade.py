@@ -652,8 +652,8 @@ def pulizia_info_pregresse(df):
 
 #iqr leggero sul dataset per togliere valori fuori scala
 #probailmente presenti da errori nella creazione del dataset
-def iqr_leggero(df):
-    target = "INCIDENTI"
+def iqr_leggero(df, target = "INCIDENTI"):
+    #target = "INCIDENTI"
 
     # Calcolo quartili sul target
     Q1 = df[target].quantile(0.25)
@@ -724,9 +724,6 @@ def add_engineered_features(df):
         df["highway_residential"] +
         df["highway_secondary"]
     ) / (lunghezzaKm + EPS)
-
-
-
 
     poi_cols = [
         "strutture_scuole", "strutture_ospedali", "strutture_polizia",
