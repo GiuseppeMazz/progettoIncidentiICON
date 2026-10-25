@@ -1,6 +1,6 @@
 ## Introduzione
 Il progetto è stato fatto per l'esame di ICON (ingegneria della conoscenza, nella triennale di informatica a UNIBA).
-L'obiettivo è quello di dimostrare che sia possibile predire la "pericolosità" di un tratto di strada (sotto forma di incidenti annuali), considerando le caratteristiche strutturali del percorso e ciò che lo circonda tramite utilizzo di machine learning.
+L'obiettivo è quello di dimostrare che sia possibile predire la "pericolosità" di un tratto di strada (sotto forma di incidenti annuali), considerando le caratteristiche strutturali del percorso e ciò che lo circonda tramite utilizzo di machine learning e reti Bayessiane.
 Si è fatta sia regressione che classificazione la prima solo con modelli di ML tradizionale: Random Forest, SVR, K-NN, Gradient Boosting, ElasticNet, BayesianRidge;
 invece la classificazione è fatta sia con modelli di ML: Random Forest, Gradient Boosting, SVC, KNN ma anche con reti bayessiane (necessarie per lo scopo di esplorare approcci diversi al problema)
 
